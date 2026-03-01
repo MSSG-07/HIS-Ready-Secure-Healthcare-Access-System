@@ -5,7 +5,7 @@ from app.services.mock_his import get_patient_from_his
 
 class HISAdapter:
     @staticmethod
-    def fetch_patient(patient_id: str):
+    def get_patient(patient_id: str):
         """
         Secure abstraction layer between portal and HIS
         """
@@ -14,5 +14,10 @@ class HISAdapter:
         if not patient:
             return None
 
-        # ⭐ place for future transformations / masking
+        # Place for future transformations / masking
         return patient
+
+    @staticmethod
+    def fetch_patient(patient_id: str):
+        """Alias for backwards compatibility"""
+        return HISAdapter.get_patient(patient_id)
