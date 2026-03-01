@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { adminApi, accessApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,6 +16,16 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+interface AccessRequest {
+  user_email: string;
+  patient_id: string;
+  reason: string;
+  status: string;
+  requested_at: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+}
+
 interface AuditEvent {
   user_email: string;
   patient_id: string;
@@ -27,27 +37,42 @@ interface AuditEvent {
   alert_flag: boolean;
 }
 
+interface CombinedReview {
+  user_email: string;
+  patient_id: string;
+  reason: string;
+  status: string;
+  timestamp: string;
+  type: "access_request" | "break_glass";
+  risk_level?: string;
+}
+
 export default function AccessReviewsPage() {
   const { token } = useAuth();
-  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const fetchEvents = async () => {
+  const fetchRequests = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await adminApi.getAccessLogs(token);
-      setEvents(data.recent_events);
-    } catch {
-      // silent fail
+      const [requestsData, logsData] = await Promise.all([
+        adminApi.getAccessRequests(token),
+        adminApi.getAccessLogs(token),
+      ]);
+      setRequests(requestsData.requests);
+      setAuditEvents(logsData.recent_events);
+    } catch (err) {
+      console.error("Failed to fetch requests:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
-    fetchEvents();
-  }, [token]);
+    fetchRequests();
+  }, [fetchRequests]);
 
   const handleReview = async (
     patientId: string,
@@ -58,7 +83,7 @@ export default function AccessReviewsPage() {
     setActionLoading(`${patientId}-${userEmail}-${approve}`);
     try {
       await accessApi.reviewRequest(patientId, userEmail, approve, token);
-      await fetchEvents();
+      await fetchRequests();
     } catch {
       // silent fail
     } finally {
@@ -66,8 +91,34 @@ export default function AccessReviewsPage() {
     }
   };
 
-  const pendingEvents = events.filter((e) => e.status === "pending");
-  const resolvedEvents = events.filter((e) => e.status !== "pending");
+  // Combine access requests and break-glass events that are pending
+  const combinedReviews: CombinedReview[] = [
+    ...requests
+      .filter((r) => r.status === "pending")
+      .map((r) => ({
+        user_email: r.user_email,
+        patient_id: r.patient_id,
+        reason: r.reason,
+        status: r.status,
+        timestamp: r.requested_at,
+        type: "access_request" as const,
+      })),
+    ...auditEvents
+      .filter((e) => e.access_type === "break_glass" && e.status === "pending")
+      .map((e) => ({
+        user_email: e.user_email,
+        patient_id: e.patient_id,
+        reason: e.reason,
+        status: e.status,
+        timestamp: e.timestamp,
+        type: "break_glass" as const,
+        risk_level: e.risk_level,
+      })),
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const pendingCount = combinedReviews.length;
+  const approvedCount = requests.filter((r) => r.status === "approved").length;
+  const rejectedCount = requests.filter((r) => r.status === "rejected").length;
 
   if (loading) {
     return (
@@ -95,7 +146,7 @@ export default function AccessReviewsPage() {
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{pendingEvents.length}</div>
+              <div className="text-2xl font-bold">{pendingCount}</div>
               <div className="text-xs text-neutral-400">Pending Reviews</div>
             </div>
           </CardContent>
@@ -106,9 +157,7 @@ export default function AccessReviewsPage() {
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-2xl font-bold">
-                {resolvedEvents.filter((e) => e.status === "approved").length}
-              </div>
+              <div className="text-2xl font-bold">{approvedCount}</div>
               <div className="text-xs text-neutral-400">Approved</div>
             </div>
           </CardContent>
@@ -119,10 +168,8 @@ export default function AccessReviewsPage() {
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-2xl font-bold">
-                {events.filter((e) => e.risk_level === "high").length}
-              </div>
-              <div className="text-xs text-neutral-400">High Risk</div>
+              <div className="text-2xl font-bold">{rejectedCount}</div>
+              <div className="text-xs text-neutral-400">Rejected</div>
             </div>
           </CardContent>
         </Card>
@@ -135,28 +182,28 @@ export default function AccessReviewsPage() {
             <div>
               <CardTitle className="text-base">Pending Reviews</CardTitle>
               <CardDescription>
-                Break-glass and access requests awaiting your decision
+                Access requests and break-glass events awaiting your decision
               </CardDescription>
             </div>
-            {pendingEvents.length > 0 && (
-              <Badge variant="warning">{pendingEvents.length} pending</Badge>
+            {pendingCount > 0 && (
+              <Badge variant="warning">{pendingCount} pending</Badge>
             )}
           </div>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[400px]">
             <div className="space-y-3">
-              {pendingEvents.length === 0 ? (
+              {combinedReviews.length === 0 ? (
                 <div className="text-center py-16">
                   <CheckCircle2 className="w-12 h-12 text-neutral-200 dark:text-neutral-700 mx-auto mb-3" />
                   <div className="text-sm text-neutral-400">All reviews are up to date</div>
                 </div>
               ) : (
-                pendingEvents.map((evt, i) => (
+                combinedReviews.map((item, i) => (
                   <div
-                    key={i}
+                    key={`${item.type}-${item.patient_id}-${item.user_email}-${i}`}
                     className={`p-4 rounded-xl border ${
-                      evt.risk_level === "high"
+                      item.type === "break_glass"
                         ? "border-red-200/60 dark:border-red-800/40 bg-red-50/30 dark:bg-red-950/10"
                         : "border-neutral-200/60 dark:border-neutral-800/60"
                     }`}
@@ -164,22 +211,24 @@ export default function AccessReviewsPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold">{evt.user_email}</span>
-                          {evt.risk_level === "high" && (
-                            <Badge variant="destructive">HIGH RISK</Badge>
+                          <span className="text-sm font-semibold">{item.user_email}</span>
+                          {item.type === "break_glass" ? (
+                            <Badge variant="destructive">BREAK-GLASS</Badge>
+                          ) : (
+                            <Badge variant="warning">PENDING</Badge>
                           )}
-                          {evt.access_type === "break_glass" && (
-                            <Badge variant="warning">BREAK-GLASS</Badge>
+                          {item.risk_level === "high" && (
+                            <Badge variant="destructive">HIGH RISK</Badge>
                           )}
                         </div>
                         <div className="text-xs text-neutral-500">
-                          Patient: {evt.patient_id} -- {evt.access_type}
+                          Patient: {item.patient_id}
                         </div>
                         <div className="text-xs text-neutral-400 mt-1">
-                          {evt.reason || "No reason provided"}
+                          {item.reason || "No reason provided"}
                         </div>
                         <div className="text-[10px] text-neutral-400 mt-1">
-                          {evt.timestamp ? new Date(evt.timestamp).toLocaleString() : "-"}
+                          {item.timestamp ? new Date(item.timestamp).toLocaleString() : "-"}
                         </div>
                       </div>
                       <div className="flex gap-2 shrink-0">
@@ -188,12 +237,12 @@ export default function AccessReviewsPage() {
                           variant="outline"
                           className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-950/30"
                           onClick={() =>
-                            handleReview(evt.patient_id, evt.user_email, true)
+                            handleReview(item.patient_id, item.user_email, true)
                           }
                           disabled={actionLoading !== null}
                         >
                           {actionLoading ===
-                          `${evt.patient_id}-${evt.user_email}-true` ? (
+                          `${item.patient_id}-${item.user_email}-true` ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -204,12 +253,12 @@ export default function AccessReviewsPage() {
                           variant="outline"
                           className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-950/30"
                           onClick={() =>
-                            handleReview(evt.patient_id, evt.user_email, false)
+                            handleReview(item.patient_id, item.user_email, false)
                           }
                           disabled={actionLoading !== null}
                         >
                           {actionLoading ===
-                          `${evt.patient_id}-${evt.user_email}-false` ? (
+                          `${item.patient_id}-${item.user_email}-false` ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <XCircle className="w-3.5 h-3.5" />

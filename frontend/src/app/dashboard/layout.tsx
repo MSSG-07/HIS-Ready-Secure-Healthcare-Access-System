@@ -11,6 +11,7 @@ import {
   FileSearch,
   LogOut,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ const navItems = {
   doctor: [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { href: "/dashboard/patients", label: "My Patients", icon: Users },
+    { href: "/dashboard/medical-records", label: "Medical Records", icon: FileText },
     { href: "/dashboard/emergency", label: "Emergency Access", icon: Activity },
     { href: "/dashboard/requests", label: "Access Requests", icon: FileSearch },
   ],

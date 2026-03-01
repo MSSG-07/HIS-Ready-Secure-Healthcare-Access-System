@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { adminApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -25,6 +25,7 @@ interface SocSummary {
   high_risk_events: number;
   pending_reviews: number;
   approved_events: number;
+  high_risk_pending: number;
 }
 
 interface AuditEvent {
@@ -45,17 +46,22 @@ export default function SOCPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!token) return;
-    adminApi
-      .getAccessLogs(token)
-      .then((data) => {
-        setSummary(data.soc_summary);
-        setEvents(data.recent_events);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    try {
+      const data = await adminApi.getAccessLogs(token);
+      setSummary(data.soc_summary);
+      setEvents(data.recent_events);
+    } catch (err) {
+      console.error("Failed to fetch access logs:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const filteredEvents =
     filter === "all"
@@ -68,7 +74,7 @@ export default function SOCPage() {
     ? Math.min(
         100,
         Math.round(
-          ((summary.high_risk_events * 3 + summary.pending_reviews) /
+          ((summary.high_risk_pending * 4 + summary.pending_reviews) /
             Math.max(summary.total_events, 1)) *
             100
         )

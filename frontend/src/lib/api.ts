@@ -96,6 +96,23 @@ export const accessApi = {
       `/api/auth/admin/review-request/${patientId}/${userEmail}?approve=${approve}`,
       { method: "POST", token }
     ),
+
+  addMedicalRecord: (patientId: string, recordType: string, notes: string, token: string) =>
+    api<{ message: string }>(
+      `/api/auth/doctor/add-medical-record?patient_id=${patientId}&record_type=${encodeURIComponent(recordType)}&notes=${encodeURIComponent(notes)}`,
+      { method: "POST", token }
+    ),
+
+  getMedicalRecords: (patientId: string, token: string) =>
+    api<{
+      records: Array<{
+        patient_id: string;
+        doctor_email: string;
+        record_type: string;
+        notes: string;
+        created_at: string;
+      }>;
+    }>(`/api/auth/medical-records/${patientId}`, { token }),
 };
 
 // --- Admin ---
@@ -107,6 +124,7 @@ export const adminApi = {
         high_risk_events: number;
         pending_reviews: number;
         approved_events: number;
+        high_risk_pending: number;
       };
       recent_events: Array<{
         user_email: string;
@@ -119,4 +137,23 @@ export const adminApi = {
         alert_flag: boolean;
       }>;
     }>("/api/auth/admin/access-logs", { token }),
+
+  getAccessRequests: (token: string) =>
+    api<{
+      summary: {
+        total_requests: number;
+        pending: number;
+        approved: number;
+        rejected: number;
+      };
+      requests: Array<{
+        user_email: string;
+        patient_id: string;
+        reason: string;
+        status: string;
+        requested_at: string;
+        reviewed_by?: string;
+        reviewed_at?: string;
+      }>;
+    }>("/api/auth/admin/access-requests", { token }),
 };

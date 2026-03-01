@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { adminApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,7 @@ interface SocSummary {
   high_risk_events: number;
   pending_reviews: number;
   approved_events: number;
+  high_risk_pending: number;
 }
 
 interface AuditEvent {
@@ -43,17 +44,22 @@ export function AdminDashboard() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!token) return;
-    adminApi
-      .getAccessLogs(token)
-      .then((data) => {
-        setSummary(data.soc_summary);
-        setEvents(data.recent_events);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    try {
+      const data = await adminApi.getAccessLogs(token);
+      setSummary(data.soc_summary);
+      setEvents(data.recent_events);
+    } catch (err) {
+      console.error("Failed to fetch access logs:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const metrics = summary
     ? [
@@ -126,7 +132,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Threat Level Indicator */}
-      {summary && summary.high_risk_events > 0 && (
+      {summary && summary.high_risk_pending > 0 && (
         <Card className="border-red-200/60 dark:border-red-800/40 bg-red-50/50 dark:bg-red-950/20">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="relative">
@@ -140,8 +146,8 @@ export function AdminDashboard() {
                 Elevated Threat Level
               </div>
               <div className="text-xs text-red-500 dark:text-red-400">
-                {summary.high_risk_events} high-risk event{summary.high_risk_events !== 1 ? "s" : ""} detected --
-                immediate review recommended
+                {summary.high_risk_pending} pending high-risk event{summary.high_risk_pending !== 1 ? "s" : ""} --
+                immediate review required
               </div>
             </div>
           </CardContent>
