@@ -1,13 +1,22 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.auth_routes import router as auth_router
+import os
 
 app = FastAPI(title="Secure Healthcare Access")
 
-# Controlled Dev CORS
+# CORS configuration - supports both development and production
+origins = [
+    "http://localhost:3000",  # Local development
+    os.getenv("FRONTEND_URL", ""),  # Production frontend URL
+]
+
+# Remove empty strings
+origins = [origin for origin in origins if origin]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
