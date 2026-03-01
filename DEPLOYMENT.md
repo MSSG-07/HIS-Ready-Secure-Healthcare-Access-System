@@ -1,167 +1,99 @@
 # 🚀 Deployment Guide - MedVault Healthcare System
 
-This guide will walk you through deploying your application to production using **Vercel** (frontend) and **Render** (backend).
+This guide will walk you through deploying your application to production using **Railway** - a modern platform that makes deploying full-stack applications incredibly simple.
 
 ---
 
 ## 📋 Prerequisites
 
 - GitHub account with your repository
-- Vercel account (sign up at https://vercel.com - free)
-- Render account (sign up at https://render.com - free)
+- Railway account (sign up at https://railway.app - $5 credit free, then ~$5/month)
 - MongoDB Atlas cluster (you already have this configured)
 
 ---
 
-## 🔧 Part 1: Deploy Backend to Render
+## 🚀 Deploy to Railway (All-in-One Solution)
 
-### Step 1: Prepare Your Repository
+Railway will automatically detect and deploy both your backend and frontend from the same repository!
 
-Your repository is already configured! The `render.yaml` file has been created with the correct settings.
+### Step 1: Create Railway Project
 
-### Step 2: Deploy on Render
+1. **Go to Railway Dashboard**
+   - Visit: https://railway.app
+   - Click **"Start a New Project"**
+   - Select **"Deploy from GitHub repo"**
 
-1. **Go to Render Dashboard**
-   - Visit: https://dashboard.render.com
-   - Click **"New +"** → **"Blueprint"**
+2. **Connect GitHub**
+   - Authorize Railway to access your GitHub
+   - Select repository: `HIS-Ready-Secure-Healthcare-Access-System`
+   - Railway will detect your monorepo structure automatically
 
-2. **Connect GitHub Repository**
-   - Select your repository: `HIS-Ready-Secure-Healthcare-Access-System`
-   - Render will automatically detect the `render.yaml` file
-   - Click **"Apply"**
+### Step 2: Deploy Backend Service
 
-3. **Set Environment Variables**
-   
-   In the Render dashboard, go to your service settings and add these environment variables:
-   
+1. **Railway will detect multiple services** (backend and frontend)
+2. Click **"Add Service"** → Select `backend` folder
+3. Railway auto-detects Python and uses `nixpacks.toml` config
+4. Click on the backend service card
+
+5. **Add Environment Variables:**
+   - Click **"Variables"** tab
+   - Add these variables:
    ```bash
-   MONGO_URI=mongodb+srv://ayrus:HRxpfNn2iKvdFiqM@cluster0.ldikt7m.mongodb.net/secure_healthcare?retryWrites=true&w=majority
-   JWT_SECRET=your-super-secret-key-change-this-in-production
+   MONGO_URI=mongodb+srv://ayrus:HRxpfNn2iKvdFiqM@cluster0.ldikt7m.mongodb.net/secure_healthcare
+   JWT_SECRET=6db591ed429ab94a6a0b19ad7378b15118969a7d4635868a56b6ab2d4d741f29
    ```
-   
-   ⚠️ **IMPORTANT:** Generate a new JWT secret for production:
+
+6. **Generate Public Domain:**
+   - Click **"Settings"** tab
+   - Scroll to **"Networking"**
+   - Click **"Generate Domain"**
+   - Copy the backend URL (e.g., `https://backend-production-xxxx.up.railway.app`)
+
+### Step 3: Deploy Frontend Service
+
+1. Back in the project dashboard, click **"New Service"**
+2. Select **"Deploy from GitHub repo"** again
+3. Choose the same repository
+4. Select `frontend` folder
+5. Railway auto-detects Next.js
+
+6. **Add Environment Variable:**
+   - Click **"Variables"** tab
+   - Add:
    ```bash
-   openssl rand -hex 32
+   NEXT_PUBLIC_API_URL=https://your-backend-url-from-step-2.up.railway.app
    ```
-   Copy the output and use it as your `JWT_SECRET`.
+   Replace with your actual backend URL from Step 2!
 
-4. **Deploy**
-   - Render will automatically build and deploy your backend
-   - Wait 3-5 minutes for the first deployment
-   - Your API will be live at: `https://medvault-api.onrender.com` (or similar)
+7. **Generate Public Domain:**
+   - Click **"Settings"** tab
+   - Scroll to **"Networking"**
+   - Click **"Generate Domain"**
+   - Your frontend will be live! 🎉
 
-5. **Verify Backend**
-   - Visit: `https://your-api-url.onrender.com/docs`
-   - You should see the FastAPI Swagger documentation
+### Step 4: Update CORS
+
+Now that both services are deployed, update the backend to allow the frontend domain:
+
+1. Go to backend service → **"Variables"** tab
+2. Add:
+   ```bash
+   FRONTEND_URL=https://your-frontend-url.up.railway.app
+   ```
+3. Backend will automatically redeploy
+
+### Step 5: Verify Deployment
+
+1. **Visit your frontend URL** (from Step 3)
+2. Try logging in / registering
+3. Check browser console for errors
+4. Test the full workflow
 
 ---
 
-## 🎨 Part 2: Deploy Frontend to Vercel
+## ✅ That's It! 
 
-### Step 1: Configure Vercel
-
-1. **Go to Vercel Dashboard**
-   - Visit: https://vercel.com/dashboard
-   - Click **"Add New..."** → **"Project"**
-
-2. **Import Your Repository**
-   - Select **"Import Git Repository"**
-   - Choose: `HIS-Ready-Secure-Healthcare-Access-System`
-   - Click **"Import"**
-
-3. **Configure Build Settings**
-   
-   Vercel should auto-detect Next.js. Update these settings:
-   
-   - **Framework Preset:** Next.js
-   - **Root Directory:** `frontend`
-   - **Build Command:** `npm run build`
-   - **Output Directory:** `.next` (default)
-   - **Install Command:** `npm install`
-
-4. **Set Environment Variables**
-   
-   In the "Environment Variables" section, add:
-   
-   ```
-   NEXT_PUBLIC_API_URL=https://your-render-backend-url.onrender.com
-   ```
-   
-   ⚠️ Replace `your-render-backend-url.onrender.com` with your actual Render API URL from Part 1
-
-5. **Deploy**
-   - Click **"Deploy"**
-   - Wait 2-3 minutes for the build
-   - Your frontend will be live at: `https://your-project.vercel.app`
-
----
-
-## 🔐 Part 3: Configure CORS (CRITICAL!)
-
-After both services are deployed, you need to update CORS settings in your backend.
-
-### Update Backend CORS
-
-1. Go to your Render dashboard
-2. Open your service → **"Environment"** tab
-3. Add a new environment variable:
-   ```
-   FRONTEND_URL=https://your-vercel-app.vercel.app
-   ```
-
-4. **Edit `backend/app/main.py`** (we'll do this via Git):
-
-   Update the CORS configuration to use the environment variable:
-   
-   ```python
-   import os
-   
-   # Update the origins list
-   origins = [
-       os.getenv("FRONTEND_URL", "http://localhost:3000"),
-       "http://localhost:3000",  # Keep for local dev
-   ]
-   ```
-
-5. Commit and push:
-   ```bash
-   git add backend/app/main.py
-   git commit -m "Configure CORS for production deployment"
-   git push origin main
-   ```
-
-6. Render will auto-deploy the update
-
----
-
-## ✅ Part 4: Verify Deployment
-
-### Test Your Production Application
-
-1. **Visit your Vercel URL:**
-   ```
-   https://your-project.vercel.app
-   ```
-
-2. **Test Login Flow:**
-   - Go to `/register` and create a test account
-   - Login with the credentials
-   - Verify the dashboard loads
-
-3. **Check Browser Console:**
-   - Open Developer Tools (F12)
-   - Look for any CORS errors
-   - Check Network tab to see API calls going to your Render backend
-
-4. **Test API Directly:**
-   ```bash
-   curl https://your-render-api.onrender.com/
-   ```
-   Should return: `{"message": "Secure Healthcare API"}`
-
----
-
-## ⚙️ Part 5: Production Optimizations
+Both services are now live and talking to each other!
 
 ### 1. Custom Domain (Optional)
 
