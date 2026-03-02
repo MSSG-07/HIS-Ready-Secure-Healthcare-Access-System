@@ -8,11 +8,12 @@ app = FastAPI(title="Secure Healthcare Access")
 # CORS configuration - supports both development and production
 origins = [
     "http://localhost:3000",  # Local development
-    os.getenv("FRONTEND_URL", ""),  # Production frontend URL
+    "https://his-ready-secure-healthcare-access.vercel.app",  # Vercel production
+    os.getenv("FRONTEND_URL", ""),  # Additional frontend URL from env
 ]
 
-# Remove empty strings
-origins = [origin for origin in origins if origin]
+# Remove empty strings and trailing slashes
+origins = [origin.rstrip("/") for origin in origins if origin]
 
 app.add_middleware(
     CORSMiddleware,
