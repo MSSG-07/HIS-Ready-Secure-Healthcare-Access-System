@@ -63,7 +63,7 @@ export const authApi = {
     }),
 
   me: (token: string) =>
-    api<{ email: string; role: string }>("/api/auth/me", { token }),
+    api<{ email: string; role: string; patient_id?: string }>("/api/auth/me", { token }),
 };
 
 // --- Patients ---

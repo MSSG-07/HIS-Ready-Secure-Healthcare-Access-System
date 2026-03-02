@@ -13,6 +13,7 @@ import { authApi } from "@/lib/api";
 interface User {
   email: string;
   role: string;
+  patient_id?: string;
 }
 
 interface AuthState {

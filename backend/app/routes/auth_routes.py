@@ -54,10 +54,14 @@ def login(user: UserLogin):
 # 🔒 Protected test route
 @router.get("/me")
 def get_me(current_user: dict = Depends(get_current_user)):
-    return {
+    response = {
         "email": current_user["email"],
         "role": current_user["role"]
     }
+    # Include linked_patient_id for patient users
+    if current_user.get("role") == "patient" and current_user.get("linked_patient_id"):
+        response["patient_id"] = current_user["linked_patient_id"]
+    return response
 
 # 👨‍⚕️ Doctor-only endpoint
 @router.get("/doctor-area")
